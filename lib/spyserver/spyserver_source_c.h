@@ -19,20 +19,22 @@
  * the Free Software Foundation, Inc., 51 Franklin Street,
  * Boston, MA 02110-1301, USA.
  */
-#ifndef INCLUDED_AIRSPY_SOURCE_C_H
-#define INCLUDED_AIRSPY_SOURCE_C_H
+#ifndef INCLUDED_SPYSERVER_SOURCE_C_H
+#define INCLUDED_SPYSERVER_SOURCE_C_H
 
+#include <thread>
+#include <atomic>
 #include <boost/circular_buffer.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
 #include <gnuradio/sync_block.h>
 
-#include <libairspy/airspy.h>
-
 #include "source_iface.h"
+#include "spyserver_protocol.h"
+#include "tcp_client.h"
 
-class airspy_source_c;
+class spyserver_source_c;
 
 /*
  * We use boost::shared_ptr's instead of raw pointers for all access
@@ -45,38 +47,39 @@ class airspy_source_c;
  *
  * As a convention, the _sptr suffix indicates a boost::shared_ptr
  */
-typedef boost::shared_ptr<airspy_source_c> airspy_source_c_sptr;
+typedef boost::shared_ptr<spyserver_source_c> spyserver_source_c_sptr;
 
 /*!
- * \brief Return a shared_ptr to a new instance of airspy_source_c.
+ * \brief Return a shared_ptr to a new instance of spyserver_source_c.
  *
- * To avoid accidental use of raw pointers, airspy_source_c's
- * constructor is private.  make_airspy_source_c is the public
+ * To avoid accidental use of raw pointers, spyserver_source_c's
+ * constructor is private.  make_spyserver_source_c is the public
  * interface for creating new instances.
  */
-airspy_source_c_sptr make_airspy_source_c (const std::string & args = "");
+spyserver_source_c_sptr make_spyserver_source_c (const std::string & args = "");
 
 /*!
  * \brief Provides a stream of complex samples.
  * \ingroup block
  */
-class airspy_source_c :
+class spyserver_source_c :
     public gr::sync_block,
     public source_iface
 {
 private:
-  // The friend declaration allows make_airspy_source_c to
+  // The friend declaration allows make_spyserver_source_c to
   // access the private constructor.
 
-  friend airspy_source_c_sptr make_airspy_source_c (const std::string & args);
+  friend spyserver_source_c_sptr make_spyserver_source_c (const std::string & args);
 
   /*!
    * \brief Provides a stream of complex samples.
    */
-  airspy_source_c (const std::string & args);  	// private constructor
+  spyserver_source_c (const std::string & args);   // private constructor
+
 
 public:
-  ~airspy_source_c (); 	// public destructor
+  ~spyserver_source_c ();  // public destructor
 
   bool start();
   bool stop();
@@ -85,7 +88,7 @@ public:
             gr_vector_const_void_star &input_items,
             gr_vector_void_star &output_items );
 
-  static std::vector< std::string > get_devices();
+  static std::vector< std::string > get_devices(bool fake = false);
 
   size_t get_num_channels( void );
 
@@ -126,10 +129,68 @@ public:
   bool get_biast();
 
 private:
-  static int _airspy_rx_callback(airspy_transfer* transfer);
-  int airspy_rx_callback(void *samples, int sample_count);
+  static constexpr unsigned int BufferSize = 64 * 1024;
+  const uint32_t ProtocolVersion = SPYSERVER_PROTOCOL_VERSION;
+  const std::string SoftwareID = std::string("gr-osmosdr");
+  const std::string NameNoDevice = std::string("SpyServer - No Device");
+  const std::string NameAirspyOne = std::string("SpyServer - Airspy One");
+  const std::string NameAirspyHF = std::string("SpyServer - Airspy HF+");
+  const std::string NameRTLSDR = std::string("SpyServer - RTLSDR");
+  const std::string NameUnknown = std::string("SpyServer - Unknown Device");
 
-  airspy_device *_dev;
+  uint32_t minimum_tunable_frequency;
+  uint32_t maximum_tunable_frequency;
+  uint32_t device_center_frequency;
+  uint32_t channel_center_frequency;
+  uint32_t channel_decimation_stage_count;
+  tcp_client client;
+
+  void connect();
+  void disconnect();
+  void thread_loop();
+  bool say_hello();
+  void cleanup();
+  void on_connect();
+
+  bool set_setting(uint32_t settingType, std::vector<uint32_t> params);
+  bool send_command(uint32_t cmd, std::vector<uint8_t> args);
+  void parse_message(char *buffer, uint32_t len);
+  int parse_header(char *buffer, uint32_t len);
+  int parse_body(char *buffer, uint32_t len);
+  void process_device_info();
+  void process_client_sync();
+  void process_uint8_samples();
+  void process_int16_samples();
+  void process_float_samples();
+  void process_uint8_fft();
+  void handle_new_message();
+  void set_stream_state();
+
+  std::atomic_bool terminated;
+  std::atomic_bool streaming;
+  std::atomic_bool got_device_info;
+  std::atomic_bool got_sync_info;
+  std::atomic_bool can_control;
+  std::atomic_bool is_connected;
+  std::thread *receiver_thread;
+
+  uint32_t dropped_buffers;
+  std::atomic<int64_t> down_stream_bytes;
+
+  uint8_t *header_data;
+  uint8_t *body_buffer;
+  uint64_t body_buffer_length;
+  uint32_t parser_position;
+  uint32_t last_sequence_number;
+
+  std::string ip;
+  int port;
+
+  DeviceInfo device_info;
+  MessageHeader header;
+
+  uint32_t streaming_mode;
+  uint32_t parser_phase;
 
   boost::circular_buffer<gr_complex> *_fifo;
   boost::mutex _fifo_lock;
@@ -138,20 +199,8 @@ private:
   std::vector< std::pair<double, uint32_t> > _sample_rates;
   double _sample_rate;
   double _center_freq;
-  double _freq_corr;
-  bool _auto_gain;
   double _gain;
-  enum gain_policy
-  {
-      linearity,
-      sensitivity
-  };
-  enum gain_policy _gain_policy;
-  double _lna_gain;
-  double _mix_gain;
-  double _vga_gain;
-  double _bandwidth;
-  bool _biasT;
+  double _digitalGain;
 };
 
-#endif /* INCLUDED_AIRSPY_SOURCE_C_H */
+#endif /* INCLUDED_SPYSERVER_SOURCE_C_H */

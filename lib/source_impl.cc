@@ -92,6 +92,10 @@
 #include <freesrp_source_c.h>
 #endif
 
+#ifdef ENABLE_SPYSERVER
+#include <spyserver_source_c.h>
+#endif
+
 #include "arg_helpers.h"
 #include "source_impl.h"
 
@@ -166,6 +170,9 @@ source_impl::source_impl( const std::string &args )
 #ifdef ENABLE_FREESRP
   dev_types.push_back("freesrp");
 #endif
+#ifdef ENABLE_SPYSERVER
+  dev_types.push_back("spyserver");
+#endif
   std::cerr << "gr-osmosdr "
             << GR_OSMOSDR_VERSION << " (" << GR_OSMOSDR_LIBVER << ") "
             << "gnuradio " << gr::version() << std::endl;
@@ -231,6 +238,10 @@ source_impl::source_impl( const std::string &args )
 #endif
 #ifdef ENABLE_AIRSPY
     BOOST_FOREACH( std::string dev, airspy_source_c::get_devices() )
+      dev_list.push_back( dev );
+#endif
+#ifdef ENABLE_SPYSERVER
+    BOOST_FOREACH( std::string dev, spyserver_source_c::get_devices() )
       dev_list.push_back( dev );
 #endif
 #ifdef ENABLE_SOAPY
@@ -351,6 +362,13 @@ source_impl::source_impl( const std::string &args )
 #ifdef ENABLE_AIRSPY
     if ( dict.count("airspy") ) {
       airspy_source_c_sptr src = make_airspy_source_c( arg );
+      block = src; iface = src.get();
+    }
+#endif
+
+#ifdef ENABLE_AIRSPY
+    if ( dict.count("spyserver") ) {
+      spyserver_source_c_sptr src = make_spyserver_source_c( arg );
       block = src; iface = src.get();
     }
 #endif
@@ -948,4 +966,22 @@ void source_impl::set_time_unknown_pps(const osmosdr::time_spec_t &time_spec)
   {
     dev->set_time_unknown_pps( time_spec );
   }
+}
+
+
+void source_impl::set_biast( bool enabled ) {
+  BOOST_FOREACH( source_iface *dev, _devs )
+  {
+    dev->set_biast(enabled);
+  }
+}
+
+bool source_impl::get_biast() {
+  BOOST_FOREACH( source_iface *dev, _devs )
+  {
+    if (dev->get_biast()) {
+      return true;
+    }
+  }
+  return false;
 }

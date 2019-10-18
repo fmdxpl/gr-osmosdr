@@ -120,6 +120,9 @@ public:
   double get_bandwidth( size_t chan = 0 );
   osmosdr::freq_range_t get_bandwidth_range( size_t chan = 0 );
 
+  void set_biast( bool enabled );
+  bool get_biast();
+
 private:
   static int _hackrf_rx_callback(hackrf_transfer* transfer);
   int hackrf_rx_callback(unsigned char *buf, uint32_t len);
@@ -152,6 +155,7 @@ private:
   double _lna_gain;
   double _vga_gain;
   double _bandwidth;
+  bool _biasT;
 };
 
 #endif /* INCLUDED_HACKRF_SOURCE_C_H */
