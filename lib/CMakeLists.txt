@@ -217,6 +217,14 @@ GR_INCLUDE_SUBDIRECTORY(airspy)
 endif(ENABLE_AIRSPY)
 
 ########################################################################
+# Setup AIRSPY component
+########################################################################
+GR_REGISTER_COMPONENT("AIRSPYHF Receiver" ENABLE_AIRSPYHF LIBAIRSPYHF_FOUND)
+if(ENABLE_AIRSPY)
+GR_INCLUDE_SUBDIRECTORY(airspyhf)
+endif(ENABLE_AIRSPYHF)
+
+########################################################################
 # Setup SPYSERVER component
 ########################################################################
 GR_REGISTER_COMPONENT("SpyServer Receiver" ENABLE_SPYSERVER)
