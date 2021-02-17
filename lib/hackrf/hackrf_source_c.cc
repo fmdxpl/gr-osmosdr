@@ -32,7 +32,7 @@
 
 #include <boost/assign.hpp>
 #include <boost/format.hpp>
-#include <boost/detail/endian.hpp>
+#include <boost/predef/other/endian.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread/thread.hpp>
 
@@ -127,10 +127,10 @@ hackrf_source_c::hackrf_source_c (const std::string &args)
 
   // create a lookup table for gr_complex values
   for (unsigned int i = 0; i <= 0xffff; i++) {
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
     _lut.push_back( gr_complex( (float(int8_t(i & 0xff))) * (1.0f/128.0f),
                                 (float(int8_t(i >> 8))) * (1.0f/128.0f) ) );
-#else // BOOST_BIG_ENDIAN
+#else // BOOST_ENDIAN_LITTLE_BYTE
     _lut.push_back( gr_complex( (float(int8_t(i >> 8))) * (1.0f/128.0f),
                                 (float(int8_t(i & 0xff))) * (1.0f/128.0f) ) );
 #endif
